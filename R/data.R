@@ -38,7 +38,7 @@
 #'        )
 #'   }
 #' }
-"kommuner"
+"MapKommuner"
 
 #' Map of Norwegian Counties (Fylker)
 #'
@@ -76,7 +76,7 @@
 #'        )
 #'   }
 #' }
-"fylker"
+"MapFylker"
 
 #' Map of Norwegian Counties and City Districts
 #'
@@ -117,4 +117,4 @@
 #'        )
 #'   }
 #' }
-"fylker_bydeler"
+"MapFylkerBydeler"
