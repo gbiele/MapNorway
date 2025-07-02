@@ -18,3 +18,4 @@ MapKommuner = load_kommuner("data-raw/kommune.gml","data-raw/fylker.geojson")
 usethis::use_data(MapKommuner)
 usethis::use_data(MapBydeler)
 usethis::use_data(MapFylkerBydeler)
+
