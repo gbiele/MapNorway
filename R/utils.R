@@ -172,136 +172,178 @@ load_kommuner <- function(kommune_file, fylke_file) {
   return(kommuner_final)
 }
 
-#' Create a Map with County and City District Insets
+
+#' Create Inset Map for Norwegian Cities
 #'
-#' This function takes a map of Norwegian counties (`fylker`) and a list of
-#' city districts (`bydeler`) maps and creates a composite map. The city districts
-#' are scaled and placed as insets around the main county map.
+#' This function generates an `sf` object that includes the main map data (`M`)
+#' along with scaled and translated inset maps for specific major Norwegian cities
+#' (Oslo, Bergen, Stavanger/Sandnes, Trondheim). The inset maps display the city
+#' districts (bydeler) of these cities at an enlarged scale and positioned in
+#' a corner of the overall map bounding box.
 #'
-#' @param fylker An `sf` object representing the base map of Norwegian counties.
-#'   It should contain the columns `navn` and `nummer`.
-#' @param bydeler A named list of `sf` objects, where each list element is a
-#'   city and contains the `sf` data for its districts. Each `sf` object
-#'   should contain `bydelnavn` and `bydelnr`.
-#' @param scaling_params A named numeric vector specifying the scaling divisor for
-#'   each city inset. Larger numbers result in smaller insets. Names must
-#'   match the names in the `bydeler` list.
-#' @param x_offset_params A named numeric vector (0-1) for placing the insets
-#'   horizontally. 0 is the far left, 1 is the far right of the main map's
-#'   bounding box.
-#' @param y_offset_params A named numeric vector (0-1) for placing the insets
-#'   vertically. 0 is the bottom, 1 is the top of the main map's
-#'   bounding box.
+#' @param M An `sf` (simple feature) data frame representing the main map of Norway.
+#'   It is expected to contain columns like `Nr`, `navn`, `fylkenavn`, `fylkeNR`,
+#'   `storby` (indicating if a feature belongs to a major city), and `level`
+#'   (e.g., "kommune" or "bydel"). The `geometry` column is also required.
+#' @param scaling_params A named numeric vector. Specifies the scaling factor for
+#'   each city's inset map relative to the main map's bounding box. Higher values
+#'   result in smaller insets (less scaling). Names should correspond to city names
+#'   (e.g., "Oslo", "Bergen", "Stavanger/Sandnes", "Trondheim").
+#' @param x_offset_params A named numeric vector. Specifies the x-offset as a
+#'   proportion of the main map's width for positioning the inset maps. Values
+#'   between 0 and 1. Names should correspond to city names.
+#' @param y_offset_params A named numeric vector. Specifies the y-offset as a
+#'   proportion of the main map's height for positioning the inset maps. Values
+#'   between 0 and 1. Names should correspond to city names.
 #'
-#' @return An `sf` object combining the county geometries with the scaled and
-#'   translated city district inset geometries. A new `level` column is added
-#'   to distinguish between "fylke" and "bydel".
-#'
-#' @importFrom sf st_bbox st_geometry st_crs st_set_crs st_sf st_drop_geometry st_transform
-#' @importFrom magrittr %>%
+#' @return An `sf` data frame that combines the original map `M` with the
+#'   generated inset maps. A new logical column `inset` is added, which is `TRUE`
+#'   for inset features and `FALSE` for main map features.
 #' @export
+#'
+#' @import sf
+#' @importFrom magrittr %>%
+#' @importFrom dplyr select rename
 #'
 #' @examples
 #' \dontrun{
-#'   # This example requires the data to be loaded first, for instance using
-#'   # the load_and_process_kommuner() and load_and_process_bydeler() functions.
+#' # Assuming MapKommunerBydeler is loaded (e.g., from package data)
+#' # data(MapKommunerBydeler)
 #'
-#'   # Define parameters for the insets
-#'   scaling <- c(Oslo = 2.5, Bergen = 3.5, Stavanger = 3.5, Trondheim = 3.5)
-#'   x_offsets <- c(Oslo = 0.005, Bergen = 0.9, Stavanger = 1, Trondheim = 0.7)
-#'   y_offsets <- c(Oslo = 0.005, Bergen = 0.5, Stavanger = 0.0, Trondheim = 0.8)
+#' # Ensure 'storby' and 'level' columns exist in MapKommunerBydeler for this example
+#' # MapKommunerBydeler$storby <- NA
+#' # MapKommunerBydeler$level <- "kommune"
+#' # MapKommunerBydeler[MapKommunerBydeler$navn %in% c("Oslo", "Bergen", "Stavanger", "Trondheim"), "storby"] <- MapKommunerBydeler[MapKommunerBydeler$navn %in% c("Oslo", "Bergen", "Stavanger", "Trondheim"), "navn"]
+#' # MapKommunerBydeler[MapKommunerBydeler$navn %in% c("Oslo", "Bergen", "Stavanger", "Trondheim"), "level"] <- "bydel" # Placeholder for actual bydeler
+#' # MapKommunerBydeler[MapKommunerBydeler$navn == "Stavanger", "storby"] <- "Stavanger/Sandnes"
+#' # MapKommunerBydeler[MapKommunerBydeler$navn == "Trondheim", "storby"] <- "Trondheim"
 #'
-#'   # Generate the final map object
-#'   map_with_insets <- create_inset_map(
-#'     fylker = fylke,
-#'     bydeler = bydeler,
-#'     scaling_params = scaling,
-#'     x_offset_params = x_offsets,
-#'     y_offset_params = y_offsets
-#'   )
+#' # Example usage with default parameters
+#' # map_with_insets <- create_inset_map(M = MapKommunerBydeler)
+#' # plot(map_with_insets, col = ifelse(map_with_insets$inset, "red", "grey"), border = "black")
 #'
-#'   # Plot using ggplot2
-#'   if (requireNamespace("ggplot2", quietly = TRUE)) {
-#'     library(ggplot2)
-#'     ggplot(data = map_with_insets) +
-#'       geom_sf(aes(fill = level))
-#'   }
+#' # Example with custom scaling and offsets
+#' # custom_scaling <- c(Oslo = 2.0, Bergen = 3.0, `Stavanger/Sandnes` = 3.0, Trondheim = 3.0)
+#' # custom_x_offset <- c(Oslo = 0.01, Bergen = 0.85, `Stavanger/Sandnes` = 0.95, Trondheim = 0.75)
+#' # custom_y_offset <- c(Oslo = 0.01, Bergen = 0.45, `Stavanger/Sandnes` = 0.05, Trondheim = 0.75)
+#' # map_with_custom_insets <- create_inset_map(
+#' #   M = MapKommunerBydeler,
+#' #   scaling_params = custom_scaling,
+#' #   x_offset_params = custom_x_offset,
+#' #   y_offset_params = custom_y_offset
+#' # )
+#' # plot(map_with_custom_insets, col = ifelse(map_with_custom_insets$inset, "blue", "lightgrey"))
 #' }
-create_inset_map <- function(fylker,
-                             bydeler,
-                             scaling_params = c(Oslo = 2.5, Bergen = 3.5, Stavanger = 3.5, Trondheim = 3.5),
-                             x_offset_params = c(Oslo = 0.005, Bergen = 0.9, Stavanger = 1, Trondheim = 0.7),
-                             y_offset_params = c(Oslo = 0.005, Bergen = 0.5, Stavanger = 0.0, Trondheim = 0.8)) {
+create_inset_map <- function(M,
+                             scaling_params = c(Oslo = 2.5, Bergen = 3.5, `Stavanger/Sandnes` = 3.5, Trondheim = 3.5),
+                             x_offset_params = c(Oslo = 0.005, Bergen = 0.9, `Stavanger/Sandnes` = 1, Trondheim = 0.7),
+                             y_offset_params = c(Oslo = 0.005, Bergen = 0.5, `Stavanger/Sandnes` = 0.0, Trondheim = 0.8)) {
+
+  # Define the major cities for which insets will be created
+  byer <- c("Oslo", "Bergen", "Stavanger/Sandnes", "Trondheim")
+
+  # Filter the main map data (M) to get the city districts for each major city
+  # This assumes 'M' has a 'storby' column that identifies these major cities.
+  bydeler <- lapply(byer, function(b) {
+    M[which(M$storby == b), ]
+  })
+  names(bydeler) <- byer
+
+  # Special handling for Oslo: remove "Marka" if present, as it's often
+  # excluded from central Oslo city district maps.
+  if ("Oslo" %in% names(bydeler) && "Marka" %in% bydeler[["Oslo"]]$navn) {
+    bydeler[["Oslo"]] <- bydeler[["Oslo"]][bydeler[["Oslo"]]$navn != "Marka", ]
+  }
 
   # --- 1. Calculate Scaling Factors ---
-  fylke_bbox <- sf::st_bbox(fylker)
+  # Determine the bounding box of the entire main map (M)
+  M_bbox <- sf::st_bbox(M)
+
+  # Calculate a scaling factor for each city's inset.
+  # This factor determines how much larger the inset will appear relative to
+  # its original size compared to the main map's overall extent.
   scale_factors <- vapply(names(bydeler), function(city_name) {
     bydel_bbox <- sf::st_bbox(bydeler[[city_name]])
-    (fylke_bbox$xmax - fylke_bbox$xmin) / (bydel_bbox$xmax - bydel_bbox$xmin) / scaling_params[[city_name]]
+    # Calculate the ratio of the main map's width to the city's bydel width,
+    # then divide by the user-defined scaling_params for fine-tuning.
+    (M_bbox$xmax - M_bbox$xmin) / (bydel_bbox$xmax - bydel_bbox$xmin) / scaling_params[[city_name]]
   }, FUN.VALUE = numeric(1))
 
   # --- 2. Scale Geometries ---
+  # Apply the calculated scaling factors to the geometries of each city's bydeler.
+  # Geometries are scaled relative to their own origin, then their CRS is reset.
   bydeler_scaled <- lapply(names(bydeler), function(city_name) {
     geom <- sf::st_geometry(bydeler[[city_name]])
     scaled_geom <- geom * scale_factors[[city_name]]
-    sf::st_set_crs(scaled_geom, sf::st_crs(geom))
+    sf::st_set_crs(scaled_geom, sf::st_crs(geom)) # Preserve CRS after scaling
   })
 
   # --- 3. Calculate Translation Offsets ---
+  # Calculate the width and height of the scaled inset geometries.
   widths <- vapply(bydeler_scaled, function(b) sf::st_bbox(b)$xmax - sf::st_bbox(b)$xmin, FUN.VALUE = numeric(1))
   heights <- vapply(bydeler_scaled, function(b) sf::st_bbox(b)$ymax - sf::st_bbox(b)$ymin, FUN.VALUE = numeric(1))
 
+  # Determine the new x-coordinates for the top-left corner of each inset.
+  # This positions the inset relative to the main map's right edge and user-defined offset.
   new_x_coords <- vapply(seq_along(bydeler), function(j) {
     city_name <- names(bydeler)[j]
-    fylke_bbox$xmax - widths[j] - (fylke_bbox$xmax - fylke_bbox$xmin) * x_offset_params[[city_name]]
+    M_bbox$xmax - widths[j] - (M_bbox$xmax - M_bbox$xmin) * x_offset_params[[city_name]]
   }, FUN.VALUE = numeric(1))
 
+  # Determine the new y-coordinates for the bottom-left corner of each inset.
+  # This positions the inset relative to the main map's bottom edge and user-defined offset.
   new_y_coords <- vapply(seq_along(bydeler), function(j) {
     city_name <- names(bydeler)[j]
-    fylke_bbox$ymin + (fylke_bbox$ymax - fylke_bbox$ymin) * y_offset_params[[city_name]]
+    M_bbox$ymin + (M_bbox$ymax - M_bbox$ymin) * y_offset_params[[city_name]]
   }, FUN.VALUE = numeric(1))
 
   # --- 4. Translate Geometries ---
+  # Apply the calculated translation vectors to move the scaled geometries to their
+  # final inset positions within the main map's coordinate system.
   bydeler_translated <- lapply(seq_along(bydeler_scaled), function(j) {
     geom <- bydeler_scaled[[j]]
     current_bbox <- sf::st_bbox(geom)
+    # Calculate the vector needed to move the current bbox's min_x, min_y
+    # to the desired new_x_coords, new_y_coords.
     translation_vector <- c(new_x_coords[j] - current_bbox$xmin, new_y_coords[j] - current_bbox$ymin)
-    translated_geom <- geom + translation_vector
-    sf::st_set_crs(translated_geom, sf::st_crs(geom))
+    translated_geom <- geom + translation_vector # Apply translation
+    sf::st_set_crs(translated_geom, sf::st_crs(geom)) # Preserve CRS after translation
   })
 
   # --- 5. Rebuild sf objects and Standardize ---
-  target_crs <- sf::st_crs(fylker)
+  # Get the target CRS from the main map (M) to ensure consistency.
+  target_crs <- sf::st_crs(M)
+
+  # Reconstruct sf objects for each inset, combining the original attributes
+  # with the newly scaled and translated geometries.
   bydeler_inset_list <- lapply(seq_along(bydeler), function(j) {
     city_name <- names(bydeler)[j]
 
-    # Create a clean data frame with standardized names
+    # Get attributes from the original (unscaled/untranslated) bydel sf object.
+    # We use sf::st_drop_geometry to get a data.frame of attributes.
     attrs <- sf::st_drop_geometry(bydeler[[city_name]])
-    clean_df <- data.frame(
-      navn = attrs$bydelnavn,
-      nummer = attrs$bydelnr
-    )
 
-    # Combine with translated geometry
-    sf_obj <- sf::st_sf(clean_df, geometry = bydeler_translated[[j]])
+    # Create a new sf object by combining these attributes with the translated geometry.
+    sf_obj <- sf::st_sf(attrs, geometry = bydeler_translated[[j]])
+
+    # Ensure the CRS of the inset matches the main map's CRS.
     sf::st_transform(sf_obj, crs = target_crs)
   })
 
   # --- 6. Combine and Finalize ---
+  # Combine all individual inset sf objects into a single sf data frame.
   bydeler_inset <- do.call(rbind, bydeler_inset_list)
-  bydeler_inset$level <- "bydel"
 
-  fylker_final <- fylker
-  fylker_final$level <- "fylke"
+  # Add an 'inset' column to distinguish between main map features and inset features.
+  bydeler_inset$inset <- TRUE
+  M$inset <- FALSE # Mark main map features as not being an inset
 
-  # Manually align columns for a robust rbind
-  names(bydeler_inset) <- c("navn", "nummer", "geometry", "level")
-  fylker_final <- fylker_final[, c("navn", "nummer", "geometry", "level")]
+  # Combine the main map data with the inset map data.
+  M_inset <- rbind(M, bydeler_inset)
 
-  final_map <- rbind(fylker_final, bydeler_inset)
-
-  return(final_map)
+  return(M_inset)
 }
+
 
 
 #' Prepare Norway Map Data
@@ -400,16 +442,12 @@ create_KommuneBydel_map <- function(kommune_path, bydel_path, fylker_path,
   # We select the original 'kommunenummer' and 'kommunenavn' and the new intersected geometry,
   # along with 'navn' and 'nummer' from the fylke layer.
   kommune_intersected <- sf::st_intersection(kommune_sf, fylker_sf) %>%
-    dplyr::select(kommunenummer, kommunenavn, geometry, navn, nummer) %>%
-    # Keep only unique kommune entries based on kommunenummer, taking the first geometry if duplicates arise
-    dplyr::distinct(kommunenummer, .keep_all = TRUE)
+    dplyr::select(kommunenummer, kommunenavn, geometry, navn, nummer)
 
   # --- 5. Reduce 'bydel' to the Intersection with 'fylke' ---
   # Similar to the kommune processing, this clips bydel geometries to fylke boundaries.
   bydel_intersected <- sf::st_intersection(bydel_sf, fylker_sf) %>%
-    dplyr::select(bydelnr, bydelnavn, geometry, navn, nummer) %>%
-    # Keep only unique bydel entries based on bydelnr
-    dplyr::distinct(bydelnr, .keep_all = TRUE)
+    dplyr::select(bydelnr, bydelnavn, geometry, navn, nummer)
 
   # --- 6. Remove Specific Kommuner ---
   # Filter out the specified kommuner from the processed kommune data.
@@ -421,18 +459,33 @@ create_KommuneBydel_map <- function(kommune_path, bydel_path, fylker_path,
   bydel_renamed <- bydel_intersected %>%
     dplyr::rename(kommunenummer = bydelnr, kommunenavn = bydelnavn)
 
+  # --- 8. Simplify Geometries ---
+  # Reduce the complexity of the geometries for faster plotting and smaller file size.
+  NrStorbyer = c(3301,3205,3107,3105,4003,4001,4204,3905)
+
+
+  kommune_filtered <- rbind(
+    rmapshaper::ms_simplify(
+      kommune_filtered[!(kommune_filtered$kommunenummer %in% NrStorbyer),],
+      keep = simplification_keep_ratio,
+      keep_shapes = TRUE),
+    rmapshaper::ms_simplify(
+      kommune_filtered[kommune_filtered$kommunenummer %in% NrStorbyer,],
+      keep = simplification_keep_ratio*100,
+      keep_shapes = TRUE)
+  )
+
+  bydel_renamed <- rmapshaper::ms_simplify(
+    bydel_renamed,
+    keep = simplification_keep_ratio*100,
+    keep_shapes = TRUE
+  )
+
   # Combine the filtered kommune data and the renamed bydel data.
   # The rbind function from base R works seamlessly with sf objects,
   # as long as column names and types are compatible.
   kommune_bydel <- rbind(kommune_filtered, bydel_renamed)
 
-  # --- 8. Simplify Geometries ---
-  # Reduce the complexity of the geometries for faster plotting and smaller file size.
-  kommune_bydel <- rmapshaper::ms_simplify(
-    kommune_bydel,
-    keep = simplification_keep_ratio,
-    keep_shapes = TRUE
-  )
 
   # --- 9. Rename Columns for Final Output ---
   # Rename columns to more generic and consistent names for the package output.
@@ -446,6 +499,16 @@ create_KommuneBydel_map <- function(kommune_path, bydel_path, fylker_path,
 
   kommune_bydel$level = "kommune"
   kommune_bydel$level[kommune_bydel$Nr > 9999] = "bydel"
-
+  kommune_bydel$storby = NA
+  kommune_bydel$storby[grepl("^301",as.character(kommune_bydel$Nr))] = "Oslo"
+  kommune_bydel$storby[grepl("^1103",as.character(kommune_bydel$Nr)) | kommune_bydel$Nr == "Sandnes"] = "Stavanger/Sandnes"
+  kommune_bydel$storby[grepl("^4601",as.character(kommune_bydel$Nr))] = "Bergen"
+  kommune_bydel$storby[grepl("^5001",as.character(kommune_bydel$Nr))] = "Trondheim"
+  kommune_bydel$storby[kommune_bydel$Nr == 3301] = "Drammen"
+  kommune_bydel$storby[kommune_bydel$Nr == 3205] = "Lillestrøm"
+  kommune_bydel$storby[kommune_bydel$Nr %in% c(3107,3105)] = "Fredrikstad/Sarpsborg"
+  kommune_bydel$storby[kommune_bydel$Nr %in% c(4003,4001)] = "Porsgrunn/Skien"
+  kommune_bydel$storby[kommune_bydel$Nr == 4204] = "Kristiansand"
+  kommune_bydel$storby[kommune_bydel$Nr == 3905] = "Tønsberg"
   return(kommune_bydel)
 }

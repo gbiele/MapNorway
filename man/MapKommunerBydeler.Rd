@@ -15,6 +15,7 @@ municipality or city district belongs.}
 \item{fylkeNR}{Character or numeric. The official county (fylkenummer) code.}
 \item{geometry}{\code{sfc_GEOMETRY}. The spatial geometry of the feature,
 which can be \code{MULTIPOLYGON} or \code{POLYGON}.}
+\item{storby}{Character. The name of a large city.}
 \item{level}{Character. Indicates whether the feature represents a "kommune"
 or a "bydel". (Note: Based on the provided \code{head()} output, this column
 \code{level} is not explicitly shown, but it's a common and useful addition

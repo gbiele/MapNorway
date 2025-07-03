@@ -78,47 +78,6 @@
 #' }
 "MapFylker"
 
-#' Map of Norwegian Counties and City Districts
-#'
-#' An `sf` dataset containing geographic boundaries for Norwegian counties
-#' (fylker) combined with a more detailed level for city districts (bydeler)
-#' in Oslo, Bergen, Stavanger and Trondheim. Cities with their disctricts are
-#' shown around the county map.
-#' The `level` column distinguishes between the two geographic types.
-#'
-#' @format An `sf` data frame with 58 features and 4 columns:
-#' \describe{
-#'   \item{navn}{Character. The name of the geographic area (e.g., "Troms", "Grünerløkka").}
-#'   \item{nummer}{Character. The official administrative number.}
-#'   \item{level}{Character. The administrative level of the feature, either "fylke" (county) or "bydel" (city district).}
-#'   \item{geometry}{sfc_GEOMETRY. The `sf` geometry column for each area.}
-#' }
-#'
-#' @source
-#' The data is a composite, derived from public sources like Statens kartverk
-#' (https://www.geonorge.no/) or Statistics Norway (https://kart.ssb.no/).
-#' The maps use boundaries and municipality or city-district numbers from 2024.
-#'
-#' @keywords datasets
-#'
-#' @examples
-#' # Check if the 'fylke_bydeler' data is available
-#' if (exists("fylke_bydeler")) {
-#'
-#'   # Using ggplot2 to show the different levels
-#'   if (requireNamespace("ggplot2", quietly = TRUE)) {
-#'     library(ggplot2)
-#'     ggplot(data = fylke_bydeler) +
-#'       geom_sf(aes(fill = level)) +
-#'       theme_minimal() +
-#'       labs(
-#'         title = "Norwegian Counties and City Districts",
-#'         fill = "Administrative Level"
-#'        )
-#'   }
-#' }
-"MapFylkerBydeler"
-
 
 #' MapKommunerBydeler: Simplified Map Data for Norwegian Municipalities and City Districts
 #'
@@ -139,6 +98,7 @@
 #'   \item{fylkeNR}{Character or numeric. The official county (fylkenummer) code.}
 #'   \item{geometry}{`sfc_GEOMETRY`. The spatial geometry of the feature,
 #'     which can be `MULTIPOLYGON` or `POLYGON`.}
+#'   \item{storby}{Character. The name of a large city.}
 #'   \item{level}{Character. Indicates whether the feature represents a "kommune"
 #'     or a "bydel". (Note: Based on the provided `head()` output, this column
 #'     `level` is not explicitly shown, but it's a common and useful addition

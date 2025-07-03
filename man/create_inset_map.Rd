@@ -2,70 +2,76 @@
 % Please edit documentation in R/utils.R
 \name{create_inset_map}
 \alias{create_inset_map}
-\title{Create a Map with County and City District Insets}
+\title{Create Inset Map for Norwegian Cities}
 \usage{
 create_inset_map(
-  fylker,
-  bydeler,
-  scaling_params = c(Oslo = 2.5, Bergen = 3.5, Stavanger = 3.5, Trondheim = 3.5),
-  x_offset_params = c(Oslo = 0.005, Bergen = 0.9, Stavanger = 1, Trondheim = 0.7),
-  y_offset_params = c(Oslo = 0.005, Bergen = 0.5, Stavanger = 0, Trondheim = 0.8)
+  M,
+  scaling_params = c(Oslo = 2.5, Bergen = 3.5, `Stavanger/Sandnes` = 3.5, Trondheim =
+    3.5),
+  x_offset_params = c(Oslo = 0.005, Bergen = 0.9, `Stavanger/Sandnes` = 1, Trondheim =
+    0.7),
+  y_offset_params = c(Oslo = 0.005, Bergen = 0.5, `Stavanger/Sandnes` = 0, Trondheim =
+    0.8)
 )
 }
 \arguments{
-\item{fylker}{An \code{sf} object representing the base map of Norwegian counties.
-It should contain the columns \code{navn} and \code{nummer}.}
+\item{M}{An \code{sf} (simple feature) data frame representing the main map of Norway.
+It is expected to contain columns like \code{Nr}, \code{navn}, \code{fylkenavn}, \code{fylkeNR},
+\code{storby} (indicating if a feature belongs to a major city), and \code{level}
+(e.g., "kommune" or "bydel"). The \code{geometry} column is also required.}
 
-\item{bydeler}{A named list of \code{sf} objects, where each list element is a
-city and contains the \code{sf} data for its districts. Each \code{sf} object
-should contain \code{bydelnavn} and \code{bydelnr}.}
+\item{scaling_params}{A named numeric vector. Specifies the scaling factor for
+each city's inset map relative to the main map's bounding box. Higher values
+result in smaller insets (less scaling). Names should correspond to city names
+(e.g., "Oslo", "Bergen", "Stavanger/Sandnes", "Trondheim").}
 
-\item{scaling_params}{A named numeric vector specifying the scaling divisor for
-each city inset. Larger numbers result in smaller insets. Names must
-match the names in the \code{bydeler} list.}
+\item{x_offset_params}{A named numeric vector. Specifies the x-offset as a
+proportion of the main map's width for positioning the inset maps. Values
+between 0 and 1. Names should correspond to city names.}
 
-\item{x_offset_params}{A named numeric vector (0-1) for placing the insets
-horizontally. 0 is the far left, 1 is the far right of the main map's
-bounding box.}
-
-\item{y_offset_params}{A named numeric vector (0-1) for placing the insets
-vertically. 0 is the bottom, 1 is the top of the main map's
-bounding box.}
+\item{y_offset_params}{A named numeric vector. Specifies the y-offset as a
+proportion of the main map's height for positioning the inset maps. Values
+between 0 and 1. Names should correspond to city names.}
 }
 \value{
-An \code{sf} object combining the county geometries with the scaled and
-translated city district inset geometries. A new \code{level} column is added
-to distinguish between "fylke" and "bydel".
+An \code{sf} data frame that combines the original map \code{M} with the
+generated inset maps. A new logical column \code{inset} is added, which is \code{TRUE}
+for inset features and \code{FALSE} for main map features.
 }
 \description{
-This function takes a map of Norwegian counties (\code{fylker}) and a list of
-city districts (\code{bydeler}) maps and creates a composite map. The city districts
-are scaled and placed as insets around the main county map.
+This function generates an \code{sf} object that includes the main map data (\code{M})
+along with scaled and translated inset maps for specific major Norwegian cities
+(Oslo, Bergen, Stavanger/Sandnes, Trondheim). The inset maps display the city
+districts (bydeler) of these cities at an enlarged scale and positioned in
+a corner of the overall map bounding box.
 }
 \examples{
 \dontrun{
-  # This example requires the data to be loaded first, for instance using
-  # the load_and_process_kommuner() and load_and_process_bydeler() functions.
+# Assuming MapKommunerBydeler is loaded (e.g., from package data)
+# data(MapKommunerBydeler)
 
-  # Define parameters for the insets
-  scaling <- c(Oslo = 2.5, Bergen = 3.5, Stavanger = 3.5, Trondheim = 3.5)
-  x_offsets <- c(Oslo = 0.005, Bergen = 0.9, Stavanger = 1, Trondheim = 0.7)
-  y_offsets <- c(Oslo = 0.005, Bergen = 0.5, Stavanger = 0.0, Trondheim = 0.8)
+# Ensure 'storby' and 'level' columns exist in MapKommunerBydeler for this example
+# MapKommunerBydeler$storby <- NA
+# MapKommunerBydeler$level <- "kommune"
+# MapKommunerBydeler[MapKommunerBydeler$navn \%in\% c("Oslo", "Bergen", "Stavanger", "Trondheim"), "storby"] <- MapKommunerBydeler[MapKommunerBydeler$navn \%in\% c("Oslo", "Bergen", "Stavanger", "Trondheim"), "navn"]
+# MapKommunerBydeler[MapKommunerBydeler$navn \%in\% c("Oslo", "Bergen", "Stavanger", "Trondheim"), "level"] <- "bydel" # Placeholder for actual bydeler
+# MapKommunerBydeler[MapKommunerBydeler$navn == "Stavanger", "storby"] <- "Stavanger/Sandnes"
+# MapKommunerBydeler[MapKommunerBydeler$navn == "Trondheim", "storby"] <- "Trondheim"
 
-  # Generate the final map object
-  map_with_insets <- create_inset_map(
-    fylker = fylke,
-    bydeler = bydeler,
-    scaling_params = scaling,
-    x_offset_params = x_offsets,
-    y_offset_params = y_offsets
-  )
+# Example usage with default parameters
+# map_with_insets <- create_inset_map(M = MapKommunerBydeler)
+# plot(map_with_insets, col = ifelse(map_with_insets$inset, "red", "grey"), border = "black")
 
-  # Plot using ggplot2
-  if (requireNamespace("ggplot2", quietly = TRUE)) {
-    library(ggplot2)
-    ggplot(data = map_with_insets) +
-      geom_sf(aes(fill = level))
-  }
+# Example with custom scaling and offsets
+# custom_scaling <- c(Oslo = 2.0, Bergen = 3.0, `Stavanger/Sandnes` = 3.0, Trondheim = 3.0)
+# custom_x_offset <- c(Oslo = 0.01, Bergen = 0.85, `Stavanger/Sandnes` = 0.95, Trondheim = 0.75)
+# custom_y_offset <- c(Oslo = 0.01, Bergen = 0.45, `Stavanger/Sandnes` = 0.05, Trondheim = 0.75)
+# map_with_custom_insets <- create_inset_map(
+#   M = MapKommunerBydeler,
+#   scaling_params = custom_scaling,
+#   x_offset_params = custom_x_offset,
+#   y_offset_params = custom_y_offset
+# )
+# plot(map_with_custom_insets, col = ifelse(map_with_custom_insets$inset, "blue", "lightgrey"))
 }
 }

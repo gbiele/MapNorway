@@ -13,12 +13,10 @@ MapFylker =
 
 MapFylker = MapFylker[, c("navn","nummer")]
 
-MapFylkerBydeler = create_inset_map(MapFylker,MapBydeler)
 
 MapKommunerBydeler = create_KommuneBydel_map(
   "data-raw/kommune.gml","data-raw/bydel2020_mednavn.gml", "data-raw/fylker.geojson")
 
-usethis::use_data(MapKommuner)
-usethis::use_data(MapFylker)
-usethis::use_data(MapFylkerBydeler)
-usethis::use_data(MapKommunerBydeler)
+usethis::use_data(MapKommuner, overwrite = TRUE)
+usethis::use_data(MapFylker, overwrite = TRUE)
+usethis::use_data(MapKommunerBydeler, overwrite = TRUE)
