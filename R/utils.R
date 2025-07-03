@@ -304,3 +304,148 @@ create_inset_map <- function(fylker,
 }
 
 
+#' Prepare Norway Map Data
+#'
+#' This function loads geospatial data for Norwegian municipalities (kommuner),
+#' city districts (bydeler), and counties (fylker), harmonizes their Coordinate
+#' Reference Systems (CRS) and geometry column names, performs spatial intersections
+#' to ensure data consistency, filters out specific large municipalities,
+#' combines the processed kommune and bydel data, and simplifies the geometries.
+#'
+#' @param kommune_path A character string. The file path to the GML file containing
+#'   kommune (municipality) geographical data. Expected columns: `kommunenummer` (numeric/character),
+#'   `kommunenavn` (character), and a geometry column named `omrade`.
+#' @param bydel_path A character string. The file path to the GML file containing
+#'   bydel (city district) geographical data. Expected columns: `bydelnr` (numeric/character),
+#'   `bydelnavn` (character), and a geometry column named `geom`.
+#' @param fylker_path A character string. The file path to the GeoJSON file containing
+#'   fylke (county) geographical data. Expected columns: `navn` (character),
+#'   `nummer` (numeric/character), and a geometry column named `geometry`.
+#' @param kommuner_to_exclude A character vector. Names of municipalities to be
+#'   excluded from the final map data (e.g., "Oslo", "Bergen").
+#' @param simplification_keep_ratio A numeric value between 0 and 1. The proportion
+#'   of vertices to keep when simplifying geometries using `rmapshaper::ms_simplify`.
+#'   A lower value results in more simplification.
+#'
+#' @return An `sf` (simple feature) data frame containing the processed and combined
+#'   map data for Norway, with harmonized CRS, geometry names, and simplified geometries.
+#'   The returned data frame will have columns: `Nr` (municipality/bydel number),
+#'   `navn` (municipality/bydel name), `fylkenavn` (county name), `fylkeNR` (county number),
+#'   and `geometry` (the spatial geometry).
+#' @export
+#'
+#' @import sf
+#' @import data.table
+#' @importFrom magrittr %>%
+#' @importFrom dplyr select rename distinct
+#' @importFrom rmapshaper ms_simplify
+#'
+#' @examples
+#' \dontrun{
+#' # Assuming data files are in a 'data-raw' directory relative to your R project
+#' # final_map <- prepare_norway_map_data(
+#' #   kommune_path = "data-raw/kommune.gml",
+#' #   bydel_path = "data-raw/bydel2020_mednavn.gml",
+#' #   fylker_path = "data-raw/Fylker.geojson",
+#' #   kommuner_to_exclude = c("Oslo", "Bergen", "Stavanger", "Trondheim - Tråante"),
+#' #   simplification_keep_ratio = 0.0005
+#' # )
+#' # plot(final_map)
+#' }
+create_KommuneBydel_map <- function(kommune_path, bydel_path, fylker_path,
+                                    kommuner_to_exclude = c("Oslo", "Bergen", "Stavanger", "Trondheim - Tråante"),
+                                    simplification_keep_ratio = 0.0005) {
+
+  # --- 1. Load Geodata ---
+  # Read the geospatial data from the specified GML and GeoJSON files.
+  # sf::st_read automatically detects the geometry column and CRS.
+  kommune_sf <- sf::st_read(kommune_path, quiet = TRUE)
+  bydel_sf <- sf::st_read(bydel_path, quiet = TRUE)
+  fylker_sf <- sf::st_read(fylker_path, quiet = TRUE)
+
+  # --- 2. Harmonize Geometry Column Names ---
+  # It's good practice to have a consistent name for the geometry column,
+  # typically 'geometry', especially when combining or manipulating sf objects.
+  # We use sf::st_set_geometry to explicitly set the geometry column to 'geometry'.
+
+  # For kommune_sf, the geometry column is 'omrade'. Rename it to 'geometry'.
+  kommune_sf <- kommune_sf %>%
+    sf::st_set_geometry("omrade") %>% # Set 'omrade' as the active geometry column
+    dplyr::rename(geometry = omrade) # Rename the column itself to 'geometry'
+
+  # For bydel_sf, the geometry column is 'geom'. Rename it to 'geometry'.
+  bydel_sf <- bydel_sf %>%
+    sf::st_set_geometry("geom") %>% # Set 'geom' as the active geometry column
+    dplyr::rename(geometry = geom) # Rename the column itself to 'geometry'
+
+  # For fylker_sf, the geometry column is already named 'geometry', so no change is needed.
+
+  # --- 3. Ensure Consistent Coordinate Reference System (CRS) ---
+  # It's crucial for spatial operations that all layers share the same CRS.
+  # Fylker.geojson is in ETRS89 / UTM zone 33N (a projected CRS), which is often
+  # suitable for spatial analysis and plotting in Norway.
+  # kommune.gml and bydel2020_mednavn.gml are in WGS 84 (a geographic CRS).
+  # We will transform kommune and bydel to match the Fylker CRS.
+
+  # Get the target CRS from the fylker_sf object
+  target_crs <- sf::st_crs(fylker_sf)
+
+  # Transform the kommune and bydel simple feature collections to the target CRS
+  kommune_sf <- kommune_sf %>% sf::st_transform(crs = target_crs)
+  bydel_sf <- bydel_sf %>% sf::st_transform(crs = target_crs)
+
+  # --- 4. Reduce 'kommune' to the Intersection with 'fylke' ---
+  # This step clips the geometries of the kommune features to the boundaries of the fylker.
+  # sf::st_intersection returns the overlapping parts of the geometries and combines attributes.
+  # We select the original 'kommunenummer' and 'kommunenavn' and the new intersected geometry,
+  # along with 'navn' and 'nummer' from the fylke layer.
+  kommune_intersected <- sf::st_intersection(kommune_sf, fylker_sf) %>%
+    dplyr::select(kommunenummer, kommunenavn, geometry, navn, nummer) %>%
+    # Keep only unique kommune entries based on kommunenummer, taking the first geometry if duplicates arise
+    dplyr::distinct(kommunenummer, .keep_all = TRUE)
+
+  # --- 5. Reduce 'bydel' to the Intersection with 'fylke' ---
+  # Similar to the kommune processing, this clips bydel geometries to fylke boundaries.
+  bydel_intersected <- sf::st_intersection(bydel_sf, fylker_sf) %>%
+    dplyr::select(bydelnr, bydelnavn, geometry, navn, nummer) %>%
+    # Keep only unique bydel entries based on bydelnr
+    dplyr::distinct(bydelnr, .keep_all = TRUE)
+
+  # --- 6. Remove Specific Kommuner ---
+  # Filter out the specified kommuner from the processed kommune data.
+  kommune_filtered <- kommune_intersected[!kommune_intersected$kommunenavn %in% kommuner_to_exclude, ]
+
+  # --- 7. Combine 'bydel' Map Data with 'kommune' Map Data ---
+  # To combine (rbind) the sf objects, their non-geometry column names must be identical.
+  # Rename the bydel columns to match the kommune columns.
+  bydel_renamed <- bydel_intersected %>%
+    dplyr::rename(kommunenummer = bydelnr, kommunenavn = bydelnavn)
+
+  # Combine the filtered kommune data and the renamed bydel data.
+  # The rbind function from base R works seamlessly with sf objects,
+  # as long as column names and types are compatible.
+  kommune_bydel <- rbind(kommune_filtered, bydel_renamed)
+
+  # --- 8. Simplify Geometries ---
+  # Reduce the complexity of the geometries for faster plotting and smaller file size.
+  kommune_bydel <- rmapshaper::ms_simplify(
+    kommune_bydel,
+    keep = simplification_keep_ratio,
+    keep_shapes = TRUE
+  )
+
+  # --- 9. Rename Columns for Final Output ---
+  # Rename columns to more generic and consistent names for the package output.
+  kommune_bydel <- kommune_bydel %>%
+    dplyr::rename(
+      fylkenavn = navn,
+      fylkeNR = nummer,
+      Nr = kommunenummer,
+      navn = kommunenavn
+    )
+
+  kommune_bydel$level = "kommune"
+  kommune_bydel$level[kommune_bydel$Nr > 9999] = "bydel"
+
+  return(kommune_bydel)
+}
