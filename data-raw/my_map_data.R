@@ -9,7 +9,7 @@ MapKommuner = load_kommuner("data-raw/kommune.gml","data-raw/fylker.geojson")
 MapFylker =
   st_read("data-raw/fylker.geojson") %>%
   st_transform(crs = st_crs(MapKommuner)) %>%
-  ms_simplify(keep = 0.0005, keep_shapes = TRUE)
+  ms_simplify(keep = 0.005, keep_shapes = TRUE)
 
 MapFylker = MapFylker[, c("navn","nummer")]
 

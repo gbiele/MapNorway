@@ -9,7 +9,7 @@ create_KommuneBydel_map(
   bydel_path,
   fylker_path,
   kommuner_to_exclude = c("Oslo", "Bergen", "Stavanger", "Trondheim - Tråante"),
-  simplification_keep_ratio = 5e-04
+  simplification_keep_ratio = 0.005
 )
 }
 \arguments{

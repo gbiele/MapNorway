@@ -161,7 +161,7 @@ load_kommuner <- function(kommune_file, fylke_file) {
   # The 'keep' parameter determines the level of detail retained.
   kommuner_simplified <- rmapshaper::ms_simplify(
     kommuner_clean,
-    keep = 0.0005,
+    keep = 0.005,
     keep_shapes = TRUE
   )
 
@@ -396,7 +396,7 @@ create_inset_map <- function(M,
 #' }
 create_KommuneBydel_map <- function(kommune_path, bydel_path, fylker_path,
                                     kommuner_to_exclude = c("Oslo", "Bergen", "Stavanger", "Trondheim - Tråante"),
-                                    simplification_keep_ratio = 0.0005) {
+                                    simplification_keep_ratio = 0.005) {
 
   # --- 1. Load Geodata ---
   # Read the geospatial data from the specified GML and GeoJSON files.
@@ -471,13 +471,13 @@ create_KommuneBydel_map <- function(kommune_path, bydel_path, fylker_path,
       keep_shapes = TRUE),
     rmapshaper::ms_simplify(
       kommune_filtered[kommune_filtered$kommunenummer %in% NrStorbyer,],
-      keep = simplification_keep_ratio*100,
+      keep = simplification_keep_ratio*10,
       keep_shapes = TRUE)
   )
 
   bydel_renamed <- rmapshaper::ms_simplify(
     bydel_renamed,
-    keep = simplification_keep_ratio*100,
+    keep = simplification_keep_ratio*10,
     keep_shapes = TRUE
   )
 
