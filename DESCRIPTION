@@ -14,7 +14,8 @@ Imports:
     ggplot2,
     magrittr,
     rmapshaper,
-    sf
+    sf,
+    leaflet
 Depends: 
     R (>= 3.5)
 LazyData: true

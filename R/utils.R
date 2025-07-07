@@ -42,7 +42,7 @@
 #'   # View the processed districts for Oslo, which now include fylke info
 #'   print(head(bydeler_data$Oslo))
 #' }
-load_bydeler <- function(bydel_file, fylke_file) {
+load_bydeler <- function(bydel_file, fylke_file, simplification_keep_ratio = 0.5) {
 
   # Check if the files exist before trying to read them
   if (!file.exists(bydel_file)) stop("File not found: ", bydel_file)
@@ -78,7 +78,7 @@ load_bydeler <- function(bydel_file, fylke_file) {
   for (b in 1:length(bydeler)) {
     # Add county info and simplify
     bydeler[[b]] <- sf::st_intersection(bydeler[[b]], fylker_transformed)[, c("bydelnavn", "bydelnr", "navn", "nummer")]
-    bydeler[[b]] <- rmapshaper::ms_simplify(bydeler[[b]], keep = 0.05, keep_shapes = TRUE)
+    bydeler[[b]] <- rmapshaper::ms_simplify(bydeler[[b]], keep = simplification_keep_ratio, keep_shapes = TRUE)
   }
 
   # Return the final processed list
@@ -132,7 +132,7 @@ load_bydeler <- function(bydel_file, fylke_file) {
 #'   # Plot the simplified municipalities
 #'   plot(st_geometry(kommuner_data))
 #' }
-load_kommuner <- function(kommune_file, fylke_file) {
+load_kommuner <- function(kommune_file, fylke_file, simplification_keep_ratio = 0.5) {
 
   # --- 1. Input Validation ---
   if (!file.exists(kommune_file)) stop("Municipality file not found: ", kommune_file)
@@ -161,7 +161,7 @@ load_kommuner <- function(kommune_file, fylke_file) {
   # The 'keep' parameter determines the level of detail retained.
   kommuner_simplified <- rmapshaper::ms_simplify(
     kommuner_clean,
-    keep = 0.005,
+    keep = simplification_keep_ratio,
     keep_shapes = TRUE
   )
 
@@ -396,7 +396,7 @@ create_inset_map <- function(M,
 #' }
 create_KommuneBydel_map <- function(kommune_path, bydel_path, fylker_path,
                                     kommuner_to_exclude = c("Oslo", "Bergen", "Stavanger", "Trondheim - Tråante"),
-                                    simplification_keep_ratio = 0.005) {
+                                    simplification_keep_ratio = 0.05) {
 
   # --- 1. Load Geodata ---
   # Read the geospatial data from the specified GML and GeoJSON files.
@@ -512,3 +512,4 @@ create_KommuneBydel_map <- function(kommune_path, bydel_path, fylker_path,
   kommune_bydel$storby[kommune_bydel$Nr == 3905] = "Tønsberg"
   return(kommune_bydel)
 }
+
