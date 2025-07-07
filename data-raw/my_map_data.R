@@ -4,7 +4,7 @@ library(MapNorway)
 
 MapBydeler = load_bydeler("data-raw/bydel2020_mednavn.gml","data-raw/fylker.geojson")
 
-MapKommuner = load_kommuner("data-raw/kommune.gml","data-raw/fylker.geojson")
+MapKommuner = load_kommuner("data-raw/kommune.gml","data-raw/fylker.geojson",simplification_keep_ratio = .05)
 
 MapFylker =
   st_read("data-raw/fylker.geojson") %>%
